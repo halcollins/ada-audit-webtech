@@ -66,7 +66,7 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
       <div className="container mx-auto px-4 max-w-2xl">
         <Card className="card-webtech">
           <CardHeader>
-            <CardTitle className="text-2xl text-center text-foreground">
+            <CardTitle className="text-2xl text-center" style={{ color: '#FFFFFF' }}>
               Start Your Free ADA Audit
             </CardTitle>
             <CardDescription className="text-center text-muted-foreground">

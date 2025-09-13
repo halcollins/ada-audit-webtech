@@ -9,7 +9,7 @@ const Header = () => {
             <Accessibility className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>
               WebTECH Consulting
             </h1>
             <p className="text-muted-foreground">

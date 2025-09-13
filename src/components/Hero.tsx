@@ -3,7 +3,7 @@ const Hero = () => {
     <section className="bg-gradient-hero py-16">
       <div className="container mx-auto px-4 text-center">
         <h2 className="text-4xl md:text-6xl font-bold text-foreground mb-6">
-          Get Your <span className="text-primary">Free ADA Audit</span>
+          <span style={{ color: '#FFFFFF' }}>Get Your</span> <span className="text-primary">Free ADA Audit</span>
         </h2>
         <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
           Enter your details and website URL below for a comprehensive accessibility audit. 
