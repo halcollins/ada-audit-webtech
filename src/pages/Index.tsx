@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import AuditForm from "@/components/AuditForm";
@@ -29,12 +30,31 @@ const Index = () => {
 
   const runAccessibilityAudit = async (data: { name: string; email: string; url: string }) => {
     setIsLoading(true);
+    let submissionId: string | null = null;
     
     try {
       // Validate URL format
       let testUrl = data.url;
       if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
         testUrl = 'https://' + testUrl;
+      }
+
+      // Save initial submission to Supabase
+      const { data: submission, error: insertError } = await supabase
+        .from('audit_submissions')
+        .insert({
+          name: data.name,
+          email: data.email,
+          url: testUrl,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error saving submission:', insertError);
+        // Continue with audit even if database save fails
+      } else {
+        submissionId = submission.id;
       }
 
       toast({
@@ -93,6 +113,22 @@ const Index = () => {
       };
       
       setAuditResults(auditResult);
+      
+      // Update submission with audit results if we saved it successfully
+      if (submissionId) {
+        const { error: updateError } = await supabase
+          .from('audit_submissions')
+          .update({
+            audit_results: results,
+            violations_count: results.violations.length,
+            passes_count: results.passes.length,
+          })
+          .eq('id', submissionId);
+
+        if (updateError) {
+          console.error('Error updating submission with results:', updateError);
+        }
+      }
       
       toast({
         title: "Audit complete!",

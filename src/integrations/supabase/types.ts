@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_submissions: {
+        Row: {
+          audit_results: Json | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          passes_count: number | null
+          updated_at: string
+          url: string
+          violations_count: number | null
+        }
+        Insert: {
+          audit_results?: Json | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          passes_count?: number | null
+          updated_at?: string
+          url: string
+          violations_count?: number | null
+        }
+        Update: {
+          audit_results?: Json | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          passes_count?: number | null
+          updated_at?: string
+          url?: string
+          violations_count?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
