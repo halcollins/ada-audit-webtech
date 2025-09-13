@@ -29,10 +29,10 @@ const PrivacyNotice = () => {
                 <p>
                   <span className="font-medium text-foreground">Data Deletion:</span> Contact us anytime to request immediate data deletion:{" "}
                   <a 
-                    href="mailto:support@webtechconsulting.com?subject=Data%20Deletion%20Request" 
+                    href="mailto:hal@halcollins.com?subject=Data%20Deletion%20Request" 
                     className="text-primary hover:text-primary/80 underline"
                   >
-                    support@webtechconsulting.com
+                    Email Support
                   </a>
                 </p>
               </div>
