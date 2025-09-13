@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_analytics: {
+        Row: {
+          created_at: string
+          error_type: string | null
+          event_type: string
+          id: string
+          referrer: string | null
+          url: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_type?: string | null
+          event_type: string
+          id?: string
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_type?: string | null
+          event_type?: string
+          id?: string
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       audit_submissions: {
         Row: {
           audit_results: Json | null
@@ -55,7 +85,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_audit_submissions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
