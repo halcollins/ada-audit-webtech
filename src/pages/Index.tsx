@@ -1,13 +1,149 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import Header from "@/components/Header";
+import Hero from "@/components/Hero";
+import AuditForm from "@/components/AuditForm";
+import AuditResults from "@/components/AuditResults";
+import Footer from "@/components/Footer";
+
+// Declare axe for TypeScript
+declare global {
+  interface Window {
+    axe: any;
+  }
+}
+
+interface AuditResult {
+  violations: any[];
+  passes: any[];
+  incomplete: any[];
+  timestamp: string;
+  url: string;
+  userName: string;
+}
 
 const Index = () => {
+  const [auditResults, setAuditResults] = useState<AuditResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const runAccessibilityAudit = async (data: { name: string; email: string; url: string }) => {
+    setIsLoading(true);
+    
+    try {
+      // Validate URL format
+      let testUrl = data.url;
+      if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
+        testUrl = 'https://' + testUrl;
+      }
+
+      toast({
+        title: "Starting audit...",
+        description: `Analyzing ${testUrl} for accessibility compliance`,
+      });
+
+      // Fetch the website content through CORS proxy
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(testUrl)}`;
+      
+      const response = await fetch(proxyUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch website: ${response.status} ${response.statusText}`);
+      }
+      
+      const html = await response.text();
+      
+      // Create a hidden iframe and inject the HTML
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.srcdoc = html;
+      
+      document.body.appendChild(iframe);
+      
+      // Wait for iframe to load
+      await new Promise((resolve) => {
+        iframe.onload = resolve;
+        setTimeout(resolve, 3000); // Fallback timeout
+      });
+
+      // Run axe-core on the iframe content
+      if (!window.axe) {
+        throw new Error('Axe-core library not loaded');
+      }
+
+      const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDocument) {
+        throw new Error('Unable to access iframe content');
+      }
+
+      const results = await window.axe.run(iframeDocument);
+      
+      // Clean up
+      document.body.removeChild(iframe);
+      
+      // Process and store results
+      const auditResult: AuditResult = {
+        violations: results.violations || [],
+        passes: results.passes || [],
+        incomplete: results.incomplete || [],
+        timestamp: new Date().toISOString(),
+        url: testUrl,
+        userName: data.name,
+      };
+      
+      setAuditResults(auditResult);
+      
+      toast({
+        title: "Audit complete!",
+        description: `Found ${results.violations.length} violations and ${results.passes.length} passed tests`,
+      });
+
+      // Scroll to results
+      setTimeout(() => {
+        const resultsSection = document.getElementById('audit-results');
+        if (resultsSection) {
+          resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error('Audit failed:', error);
+      
+      let errorMessage = "This URL fetch failed – Please make sure the website is accessible to the public or try another URL";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = "Unable to access this website. It may be protected by CORS policies or unavailable.";
+        } else if (error.message.includes('Axe-core')) {
+          errorMessage = "Accessibility testing library not available. Please refresh the page and try again.";
+        }
+      }
+      
+      toast({
+        title: "Audit failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <main className="min-h-screen bg-background">
+      <Header />
+      <Hero />
+      <AuditForm onSubmit={runAccessibilityAudit} isLoading={isLoading} />
+      
+      {auditResults && (
+        <div id="audit-results">
+          <AuditResults results={auditResults} />
+        </div>
+      )}
+      
+      <Footer />
+    </main>
   );
 };
 

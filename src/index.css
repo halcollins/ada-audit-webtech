@@ -2,41 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* WebTECH Consulting ADA Analyzer Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* WebTECH Brand Colors - HSL Format */
+    --background: 0 0% 0%; /* #000000 - Deep black background */
+    --foreground: 207 15% 70%; /* #9AA1AC - Accessible gray text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 215 15% 11%; /* #1B1D23 - Dark card background */
+    --card-foreground: 207 15% 70%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 215 15% 11%;
+    --popover-foreground: 207 15% 70%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 45 96% 59%; /* #FDBD32 - Professional gold accent */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 215 20% 25%; /* #344256 - Professional blue-gray */
+    --secondary-foreground: 207 15% 80%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 215 15% 8%;
+    --muted-foreground: 207 15% 60%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 45 96% 59%; /* Gold accent */
+    --accent-foreground: 0 0% 0%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 215 15% 15%;
+    --input: 215 15% 15%;
+    --ring: 45 96% 59%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Custom WebTECH Variables */
+    --webtech-gold: 45 96% 59%; /* #FDBD32 */
+    --webtech-dark: 215 15% 11%; /* #1B1D23 */
+    --webtech-blue: 215 20% 25%; /* #344256 */
+    --webtech-text: 207 15% 70%; /* #9AA1AC */
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--webtech-dark)), hsl(215 15% 8%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--webtech-gold)), hsl(45 96% 55%));
+    --gradient-card: linear-gradient(145deg, hsl(var(--webtech-dark)), hsl(215 15% 13%));
+    
+    /* Shadows */
+    --shadow-professional: 0 10px 30px -10px hsl(0 0% 0% / 0.5);
+    --shadow-gold: 0 0 20px hsl(var(--webtech-gold) / 0.2);
+    --shadow-card: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
+    
+    /* Animations */
+    --transition-professional: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +119,47 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Professional button styles */
+  .btn-webtech-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 
+           shadow-lg hover:shadow-xl hover:shadow-primary/20
+           transition-all duration-300 font-semibold;
+  }
+  
+  .btn-webtech-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/90
+           border border-border hover:border-primary/50
+           transition-all duration-300;
+  }
+  
+  /* Card styles */
+  .card-webtech {
+    @apply bg-card border border-border rounded-lg shadow-lg
+           hover:shadow-xl transition-all duration-300;
+  }
+  
+  /* Input styles */
+  .input-webtech {
+    @apply bg-input border border-border text-foreground
+           focus:border-primary focus:ring-2 focus:ring-primary/20
+           transition-all duration-200 rounded-md;
+  }
+  
+  /* Gradient backgrounds */
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .bg-gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .bg-gradient-card {
+    background: var(--gradient-card);
   }
 }
