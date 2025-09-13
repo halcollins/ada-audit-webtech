@@ -192,7 +192,7 @@ const AuditResults = ({ results }: AuditResultsProps) => {
               <Button
                 variant="secondary"
                 className="w-full"
-                onClick={() => window.open("https://halcollins.webtech.consulting/#contact", "_blank")}
+                onClick={() => window.open("https://halcollins.webtech.consulting/", "_blank")}
               >
                 <Calendar className="mr-2 h-4 w-4" />
                 Schedule Consultation
