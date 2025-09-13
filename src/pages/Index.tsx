@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { trackAuditAttempt, trackAuditSuccess, trackAuditFailure } from "@/utils/analytics";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import AuditForm from "@/components/AuditForm";
@@ -38,6 +39,9 @@ const Index = () => {
       if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
         testUrl = 'https://' + testUrl;
       }
+
+      // Track audit attempt
+      trackAuditAttempt(testUrl);
 
       // Save initial submission to Supabase
       const { data: submission, error: insertError } = await supabase
@@ -130,6 +134,9 @@ const Index = () => {
         }
       }
       
+      // Track successful audit
+      trackAuditSuccess(testUrl, results.violations.length, results.passes.length);
+      
       toast({
         title: "Audit complete!",
         description: `Found ${results.violations.length} violations and ${results.passes.length} passed tests`,
@@ -147,14 +154,22 @@ const Index = () => {
       console.error('Audit failed:', error);
       
       let errorMessage = "This URL fetch failed – Please make sure the website is accessible to the public or try another URL";
+      let errorType = "unknown";
       
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch')) {
           errorMessage = "Unable to access this website. It may be protected by CORS policies or unavailable.";
+          errorType = "cors_or_network";
         } else if (error.message.includes('Axe-core')) {
           errorMessage = "Accessibility testing library not available. Please refresh the page and try again.";
+          errorType = "axe_library_missing";
+        } else if (error.message.includes('iframe')) {
+          errorType = "iframe_access";
         }
       }
+      
+      // Track failed audit
+      trackAuditFailure(data.url.startsWith('http') ? data.url : `https://${data.url}`, errorType);
       
       toast({
         title: "Audit failed",

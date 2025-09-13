@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Search } from "lucide-react";
+import PrivacyNotice from "@/components/PrivacyNotice";
 
 interface AuditFormProps {
   onSubmit: (data: { name: string; email: string; url: string }) => void;
@@ -149,6 +150,8 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
             </form>
           </CardContent>
         </Card>
+        
+        <PrivacyNotice />
       </div>
     </section>
   );
