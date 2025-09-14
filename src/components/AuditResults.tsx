@@ -192,7 +192,7 @@ const AuditResults = ({ results }: AuditResultsProps) => {
               <Button
                 variant="secondary"
                 className="w-full"
-                onClick={() => window.open("https://halcollins.webtech.consulting/", "_blank")}
+                onClick={() => window.open("mailto:hal@halcollins.com?subject=Professional ADA Audit - Consultation&body=Hi Hal,%0A%0AI'm interested in scheduling a consultation to discuss a professional ADA accessibility audit for my website. I just completed the free audit tool and would like to discuss comprehensive accessibility solutions.%0A%0AWebsite: " + url + "%0A%0AThanks!")}
               >
                 <Calendar className="mr-2 h-4 w-4" />
                 Schedule Consultation
