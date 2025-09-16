@@ -10,7 +10,7 @@ const Header = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>
-              WebTECH Consulting
+              <a href="/">WebTECH Consulting</a>
             </h1>
             <p className="text-muted-foreground">
               Free ADA Accessibility Audit Tool
