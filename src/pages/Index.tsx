@@ -44,21 +44,17 @@ const Index = () => {
       trackAuditAttempt(testUrl);
 
       // Save initial submission to Supabase
-      const { data: submission, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('audit_submissions')
         .insert({
           name: data.name,
           email: data.email,
           url: testUrl,
-        })
-        .select()
-        .single();
+        });
 
       if (insertError) {
         console.error('Error saving submission:', insertError);
         // Continue with audit even if database save fails
-      } else {
-        submissionId = submission.id;
       }
 
       toast({
@@ -118,20 +114,20 @@ const Index = () => {
       
       setAuditResults(auditResult);
       
-      // Update submission with audit results if we saved it successfully
-      if (submissionId) {
-        const { error: updateError } = await supabase
-          .from('audit_submissions')
-          .update({
-            audit_results: results,
-            violations_count: results.violations.length,
-            passes_count: results.passes.length,
-          })
-          .eq('id', submissionId);
+      // Save audit results in a separate insert since we can't update without SELECT access
+      const { error: resultsError } = await supabase
+        .from('audit_submissions')
+        .insert({
+          name: data.name,
+          email: data.email,
+          url: testUrl,
+          audit_results: results,
+          violations_count: results.violations.length,
+          passes_count: results.passes.length,
+        });
 
-        if (updateError) {
-          console.error('Error updating submission with results:', updateError);
-        }
+      if (resultsError) {
+        console.error('Error saving audit results:', resultsError);
       }
       
       // Track successful audit
