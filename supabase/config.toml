@@ -1,1 +1,4 @@
 project_id = "ljcqrmifcyakkuphqinp"
+
+[functions.audit-website]
+verify_jwt = false
