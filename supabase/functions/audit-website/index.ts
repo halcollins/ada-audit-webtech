@@ -203,12 +203,18 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Audit function error:', error);
+    // Log full error details server-side only
+    console.error('Audit function error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
+    // Return generic error message to client
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: 'Unable to complete accessibility audit. Please try again later.',
         method: 'server-side'
       }),
       {
