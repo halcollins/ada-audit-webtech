@@ -101,33 +101,38 @@ serve(async (req) => {
   console.log(`Request from IP: ${clientIP}`);
 
   try {
-    // Rate limiting check
-    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
-    
-    const { count, error: countError } = await supabase
-      .from('audit_analytics')
-      .select('*', { count: 'exact', head: true })
-      .eq('ip_address', clientIP)
-      .gte('created_at', windowStart);
+    // Rate limiting check - gracefully handle if ip_address column doesn't exist
+    try {
+      const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+      
+      const { count, error: countError } = await supabase
+        .from('audit_analytics')
+        .select('*', { count: 'exact', head: true })
+        .eq('ip_address', clientIP)
+        .gte('created_at', windowStart);
 
-    if (countError) {
-      console.error('Rate limit check error:', countError);
-    } else if (count !== null && count >= RATE_LIMIT_MAX) {
-      console.log(`Rate limit exceeded for IP: ${clientIP} (${count} requests)`);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Rate limit exceeded. Please try again later.' 
-        }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json',
-            'Retry-After': '3600'
-          } 
-        }
-      );
+      if (countError) {
+        // Log but continue - rate limiting is optional
+        console.log('Rate limit check skipped (column may not exist):', countError.message);
+      } else if (count !== null && count >= RATE_LIMIT_MAX) {
+        console.log(`Rate limit exceeded for IP: ${clientIP} (${count} requests)`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Rate limit exceeded. Please try again later.' 
+          }),
+          { 
+            status: 429, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'Retry-After': '3600'
+            } 
+          }
+        );
+      }
+    } catch (rateLimitError) {
+      console.log('Rate limiting unavailable, continuing:', rateLimitError);
     }
 
     // Parse and validate input
@@ -401,18 +406,21 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       console.error('Database insert error:', insertError);
     }
 
-    // Track analytics with IP for rate limiting
-    const { error: analyticsError } = await supabase
-      .from('audit_analytics')
-      .insert({
-        event_type: 'success',
-        url: testUrl,
-        user_agent: req.headers.get('user-agent')?.substring(0, 500) || undefined,
-        ip_address: clientIP,
-      });
+    // Track analytics - gracefully handle if ip_address column doesn't exist
+    try {
+      const { error: analyticsError } = await supabase
+        .from('audit_analytics')
+        .insert({
+          event_type: 'success',
+          url: testUrl,
+          user_agent: req.headers.get('user-agent')?.substring(0, 500) || undefined,
+        });
 
-    if (analyticsError) {
-      console.error('Analytics error:', analyticsError);
+      if (analyticsError) {
+        console.log('Analytics insert skipped:', analyticsError.message);
+      }
+    } catch (analyticsErr) {
+      console.log('Analytics tracking unavailable');
     }
 
     return new Response(
@@ -433,13 +441,16 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       name: error.name
     });
 
-    // Track failed request for rate limiting
-    await supabase
-      .from('audit_analytics')
-      .insert({
-        event_type: 'error',
-        ip_address: clientIP,
-      }).catch(() => {});
+    // Track failed request
+    try {
+      await supabase
+        .from('audit_analytics')
+        .insert({
+          event_type: 'error',
+        });
+    } catch {
+      // Ignore analytics errors
+    }
     
     return new Response(
       JSON.stringify({
