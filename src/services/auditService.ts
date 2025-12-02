@@ -18,33 +18,28 @@ export interface AuditResult {
 }
 
 export const tryServerSideAudit = async (data: { name: string; email: string; url: string }): Promise<AuditResult> => {
-  try {
-    const { data: result, error } = await supabase.functions.invoke('audit-website', {
-      body: {
-        url: data.url,
-        name: data.name,
-        email: data.email
-      }
-    });
-
-    if (error) throw error;
-
-    if (result.success) {
-      return {
-        violations: result.results.violations || [],
-        passes: result.results.passes || [],
-        incomplete: result.results.incomplete || [],
-        timestamp: new Date().toISOString(),
-        url: result.url,
-        userName: data.name,
-        method: 'server-side'
-      };
-    } else {
-      throw new Error(result.error || 'Server-side audit failed');
+  const { data: result, error } = await supabase.functions.invoke('audit-website', {
+    body: {
+      url: data.url,
+      name: data.name,
+      email: data.email
     }
-  } catch (error) {
-    console.error('Server-side audit failed:', error);
-    throw error;
+  });
+
+  if (error) throw error;
+
+  if (result.success) {
+    return {
+      violations: result.results.violations || [],
+      passes: result.results.passes || [],
+      incomplete: result.results.incomplete || [],
+      timestamp: result.results.timestamp || new Date().toISOString(),
+      url: result.url,
+      userName: data.name,
+      method: result.method || 'ai-powered'
+    };
+  } else {
+    throw new Error(result.error || 'AI-powered audit failed');
   }
 };
 
