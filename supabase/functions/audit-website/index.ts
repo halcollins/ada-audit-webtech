@@ -1,7 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,9 +9,7 @@ const corsHeaders = {
 
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
-  'https://cors-anywhere.herokuapp.com/',
   'https://api.codetabs.com/v1/proxy?quest=',
-  'https://cors-proxy.htmldriven.com/?url='
 ];
 
 serve(async (req) => {
@@ -36,9 +33,9 @@ serve(async (req) => {
       testUrl = 'https://' + testUrl;
     }
 
-    console.log(`Starting audit for: ${testUrl}`);
+    console.log(`Starting AI-powered audit for: ${testUrl}`);
 
-    // Try multiple CORS proxies
+    // Fetch HTML content
     let html = '';
     let lastError = null;
 
@@ -52,7 +49,7 @@ serve(async (req) => {
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; AccessibilityAuditor/1.0)',
           },
-          signal: AbortSignal.timeout(10000), // 10 second timeout
+          signal: AbortSignal.timeout(15000),
         });
 
         if (response.ok) {
@@ -70,98 +67,182 @@ serve(async (req) => {
     }
 
     if (!html) {
-      throw new Error(`All CORS proxies failed. Last error: ${lastError?.message}`);
+      throw new Error(`Unable to fetch website content. Please verify the URL is accessible.`);
     }
 
     console.log(`Fetched HTML content: ${html.length} characters`);
 
-    // Parse HTML into DOM
-    const parser = new DOMParser();
-    const document = parser.parseFromString(html, "text/html");
-    
-    if (!document) {
-      throw new Error('Failed to parse HTML document');
+    // Truncate HTML if too long (to fit AI context)
+    const maxHtmlLength = 50000;
+    const truncatedHtml = html.length > maxHtmlLength 
+      ? html.substring(0, maxHtmlLength) + '\n<!-- HTML truncated for analysis -->'
+      : html;
+
+    // Call Lovable AI for accessibility analysis
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('AI service not configured');
     }
 
-    console.log('HTML parsed successfully, running accessibility audit...');
+    console.log('Calling AI for accessibility analysis...');
 
-    // Load and execute axe-core
-    const axeResponse = await fetch('https://cdn.jsdelivr.net/npm/axe-core@4.8.2/axe.min.js');
-    const axeCode = await axeResponse.text();
-
-    // Create a global context for axe-core
-    const globalThis = {
-      window: {
-        document: document,
-        Node: globalThis.Node,
-        NodeList: globalThis.NodeList,
-        HTMLElement: globalThis.HTMLElement,
-        Element: globalThis.Element,
-        getComputedStyle: () => ({}), // Mock function
-        addEventListener: () => {}, // Mock function
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      document: document,
-      Node: globalThis.Node,
-      NodeList: globalThis.NodeList,
-      HTMLElement: globalThis.HTMLElement,  
-      Element: globalThis.Element,
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert web accessibility auditor. Analyze HTML for WCAG 2.1 AA compliance issues.
+
+Your task is to identify accessibility violations, passes, and items needing manual review.
+
+For VIOLATIONS, check for:
+- Missing or empty alt attributes on images
+- Missing form labels or aria-label
+- Color contrast issues (infer from inline styles/classes)
+- Missing document language (lang attribute)
+- Empty links or buttons
+- Missing heading hierarchy (skipped levels)
+- Tables without proper headers
+- Missing ARIA landmarks
+- Keyboard accessibility issues
+- Missing skip links
+- Auto-playing media
+- Missing focus indicators (infer from styles)
+
+For PASSES, note elements that correctly implement:
+- Proper alt text on images
+- Labeled form controls
+- Correct heading hierarchy
+- Proper ARIA usage
+- Semantic HTML usage
+
+Be thorough and specific. Reference actual elements from the HTML when possible.`
+          },
+          {
+            role: 'user',
+            content: `Analyze this HTML for accessibility issues:\n\n${truncatedHtml}`
+          }
+        ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'report_accessibility_audit',
+              description: 'Report the accessibility audit findings',
+              parameters: {
+                type: 'object',
+                properties: {
+                  violations: {
+                    type: 'array',
+                    description: 'Accessibility violations found',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', description: 'Unique identifier like "image-alt", "label", "color-contrast"' },
+                        description: { type: 'string', description: 'Description of the violation' },
+                        impact: { type: 'string', enum: ['critical', 'serious', 'moderate', 'minor'] },
+                        help: { type: 'string', description: 'How to fix this issue' },
+                        helpUrl: { type: 'string', description: 'WCAG reference URL' },
+                        nodes: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              html: { type: 'string', description: 'The problematic HTML snippet' },
+                              failureSummary: { type: 'string', description: 'Why this element fails' }
+                            },
+                            required: ['html', 'failureSummary']
+                          }
+                        }
+                      },
+                      required: ['id', 'description', 'impact', 'help', 'nodes']
+                    }
+                  },
+                  passes: {
+                    type: 'array',
+                    description: 'Accessibility checks that passed',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        description: { type: 'string' }
+                      },
+                      required: ['id', 'description']
+                    }
+                  },
+                  incomplete: {
+                    type: 'array',
+                    description: 'Items needing manual review',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        description: { type: 'string' },
+                        help: { type: 'string' }
+                      },
+                      required: ['id', 'description']
+                    }
+                  }
+                },
+                required: ['violations', 'passes', 'incomplete']
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'report_accessibility_audit' } }
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('AI API error:', aiResponse.status, errorText);
+      
+      if (aiResponse.status === 429) {
+        throw new Error('Service temporarily busy. Please try again in a moment.');
+      }
+      if (aiResponse.status === 402) {
+        throw new Error('Service quota exceeded. Please try again later.');
+      }
+      throw new Error('AI analysis failed');
+    }
+
+    const aiData = await aiResponse.json();
+    console.log('AI response received');
+
+    // Extract the tool call results
+    let auditResults = {
+      violations: [],
+      passes: [],
+      incomplete: [],
+      url: testUrl,
+      timestamp: new Date().toISOString()
     };
 
-    // Execute axe-core in the context
-    let auditResults;
-    try {
-      // Eval axe-core code with our global context
-      const axeFunction = new Function('globalThis', 'window', 'document', axeCode + '; return axe;');
-      const axe = axeFunction(globalThis, globalThis.window, document);
-      
-      // Configure axe for server-side execution
-      axe.configure({
-        reporter: 'v2',
-        resultTypes: ['violations', 'passes', 'incomplete', 'inapplicable'],
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice']
-        }
-      });
-
-      // Run the audit
-      auditResults = await new Promise((resolve, reject) => {
-        axe.run(document, (err, results) => {
-          if (err) {
-            reject(new Error(`Axe audit failed: ${err.message}`));
-          } else {
-            resolve(results);
-          }
-        });
-      });
-
-      console.log(`Audit completed: ${auditResults.violations.length} violations, ${auditResults.passes.length} passes`);
-      
-    } catch (axeError) {
-      console.error('Axe execution error:', axeError);
-      // Fallback to basic DOM analysis if axe fails
-      auditResults = {
-        violations: [],
-        passes: [{
-          id: 'server-fallback',
-          description: 'Server-side audit completed with fallback method',
-          impact: null,
-          tags: ['fallback'],
-          nodes: []
-        }],
-        incomplete: [],
-        inapplicable: [],
-        url: testUrl,
-        timestamp: new Date().toISOString()
-      };
+    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try {
+        const parsed = JSON.parse(toolCall.function.arguments);
+        auditResults.violations = parsed.violations || [];
+        auditResults.passes = parsed.passes || [];
+        auditResults.incomplete = parsed.incomplete || [];
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', parseError);
+      }
     }
 
-    // Initialize Supabase client
+    console.log(`AI audit completed: ${auditResults.violations.length} violations, ${auditResults.passes.length} passes`);
+
+    // Initialize Supabase client and save results
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Save audit results to database
     const { error: insertError } = await supabase
       .from('audit_submissions')
       .insert({
@@ -195,7 +276,7 @@ serve(async (req) => {
         success: true,
         results: auditResults,
         url: testUrl,
-        method: 'server-side'
+        method: 'ai-powered'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -203,19 +284,17 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    // Log full error details server-side only
     console.error('Audit function error:', {
       message: error.message,
       stack: error.stack,
       name: error.name
     });
     
-    // Return generic error message to client
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Unable to complete accessibility audit. Please try again later.',
-        method: 'server-side'
+        error: error.message || 'Unable to complete accessibility audit. Please try again later.',
+        method: 'ai-powered'
       }),
       {
         status: 500,
