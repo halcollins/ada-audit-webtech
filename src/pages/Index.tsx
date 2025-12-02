@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { trackAuditAttempt, trackAuditSuccess, trackAuditFailure } from "@/utils/analytics";
 import { runAuditWithFallback, type AuditResult } from "@/services/auditService";
 import Header from "@/components/Header";
@@ -44,25 +43,7 @@ const Index = () => {
       
       setAuditResults(auditResult);
       
-      // Save audit results to database
-      const { error: resultsError } = await supabase
-        .from('audit_submissions')
-        .insert({
-          name: data.name,
-          email: data.email,
-          url: auditResult.url,
-          audit_results: {
-            violations: auditResult.violations,
-            passes: auditResult.passes,
-            incomplete: auditResult.incomplete
-          },
-          violations_count: auditResult.violations.length,
-          passes_count: auditResult.passes.length,
-        });
-
-      if (resultsError) {
-        console.error('Error saving audit results:', resultsError);
-      }
+      // Note: Database save is handled by the edge function for server-side audits
       
       // Track successful audit
       trackAuditSuccess(auditResult.url, auditResult.violations.length, auditResult.passes.length);
