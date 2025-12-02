@@ -12,26 +12,173 @@ const CORS_PROXIES = [
   'https://api.codetabs.com/v1/proxy?quest=',
 ];
 
+// Rate limiting: max requests per IP per hour
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// Input validation helpers
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+}
+
+function validateName(name: string): boolean {
+  return typeof name === 'string' && name.trim().length >= 1 && name.length <= 100;
+}
+
+function validateUrl(url: string): { valid: boolean; normalized?: string; error?: string } {
+  if (typeof url !== 'string' || url.length > 2048) {
+    return { valid: false, error: 'URL must be a string with max 2048 characters' };
+  }
+
+  let normalized = url.trim();
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+    normalized = 'https://' + normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    
+    // Block private/internal IP addresses (SSRF protection)
+    const hostname = parsed.hostname.toLowerCase();
+    
+    // Block localhost variants
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return { valid: false, error: 'Internal addresses are not allowed' };
+    }
+    
+    // Block private IP ranges
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [, a, b, c] = ipv4Match.map(Number);
+      // 10.x.x.x
+      if (a === 10) return { valid: false, error: 'Private IP addresses are not allowed' };
+      // 172.16.x.x - 172.31.x.x
+      if (a === 172 && b >= 16 && b <= 31) return { valid: false, error: 'Private IP addresses are not allowed' };
+      // 192.168.x.x
+      if (a === 192 && b === 168) return { valid: false, error: 'Private IP addresses are not allowed' };
+      // 169.254.x.x (link-local)
+      if (a === 169 && b === 254) return { valid: false, error: 'Link-local addresses are not allowed' };
+      // 0.0.0.0
+      if (a === 0) return { valid: false, error: 'Invalid IP address' };
+    }
+    
+    // Block internal hostnames
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.localhost')) {
+      return { valid: false, error: 'Internal hostnames are not allowed' };
+    }
+
+    // Only allow http/https protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { valid: false, error: 'Only HTTP and HTTPS protocols are allowed' };
+    }
+
+    return { valid: true, normalized };
+  } catch {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+}
+
+// Get client IP from request
+function getClientIP(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+         req.headers.get('x-real-ip') ||
+         req.headers.get('cf-connecting-ip') ||
+         'unknown';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { url, name, email } = await req.json();
+  // Initialize Supabase client early for rate limiting
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-    if (!url || !name || !email) {
+  const clientIP = getClientIP(req);
+  console.log(`Request from IP: ${clientIP}`);
+
+  try {
+    // Rate limiting check
+    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+    
+    const { count, error: countError } = await supabase
+      .from('audit_analytics')
+      .select('*', { count: 'exact', head: true })
+      .eq('ip_address', clientIP)
+      .gte('created_at', windowStart);
+
+    if (countError) {
+      console.error('Rate limit check error:', countError);
+    } else if (count !== null && count >= RATE_LIMIT_MAX) {
+      console.log(`Rate limit exceeded for IP: ${clientIP} (${count} requests)`);
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: url, name, email' }),
+        JSON.stringify({ 
+          success: false, 
+          error: 'Rate limit exceeded. Please try again later.' 
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': '3600'
+          } 
+        }
+      );
+    }
+
+    // Parse and validate input
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate and normalize URL
-    let testUrl = url;
-    if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
-      testUrl = 'https://' + testUrl;
+    const { url, name, email } = body;
+
+    // Validate required fields
+    if (!url || !name || !email) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required fields: url, name, email' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Validate name
+    if (!validateName(name)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Name must be 1-100 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate email
+    if (!validateEmail(email)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid email format or too long (max 255 characters)' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate URL with SSRF protection
+    const urlValidation = validateUrl(url);
+    if (!urlValidation.valid) {
+      return new Response(
+        JSON.stringify({ success: false, error: urlValidation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const testUrl = urlValidation.normalized!;
+    const sanitizedName = name.trim().substring(0, 100);
+    const sanitizedEmail = email.trim().toLowerCase().substring(0, 255);
 
     console.log(`Starting AI-powered audit for: ${testUrl}`);
 
@@ -238,16 +385,12 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
 
     console.log(`AI audit completed: ${auditResults.violations.length} violations, ${auditResults.passes.length} passes`);
 
-    // Initialize Supabase client and save results
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    // Save results with sanitized inputs
     const { error: insertError } = await supabase
       .from('audit_submissions')
       .insert({
-        name,
-        email,
+        name: sanitizedName,
+        email: sanitizedEmail,
         url: testUrl,
         audit_results: auditResults,
         violations_count: auditResults.violations.length,
@@ -258,13 +401,14 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       console.error('Database insert error:', insertError);
     }
 
-    // Track analytics
+    // Track analytics with IP for rate limiting
     const { error: analyticsError } = await supabase
       .from('audit_analytics')
       .insert({
         event_type: 'success',
         url: testUrl,
-        user_agent: req.headers.get('user-agent') || undefined,
+        user_agent: req.headers.get('user-agent')?.substring(0, 500) || undefined,
+        ip_address: clientIP,
       });
 
     if (analyticsError) {
@@ -286,9 +430,16 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
   } catch (error) {
     console.error('Audit function error:', {
       message: error.message,
-      stack: error.stack,
       name: error.name
     });
+
+    // Track failed request for rate limiting
+    await supabase
+      .from('audit_analytics')
+      .insert({
+        event_type: 'error',
+        ip_address: clientIP,
+      }).catch(() => {});
     
     return new Response(
       JSON.stringify({
