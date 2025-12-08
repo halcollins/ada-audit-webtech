@@ -406,7 +406,7 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       console.error('Database insert error:', insertError);
     }
 
-    // Track analytics - gracefully handle if ip_address column doesn't exist
+    // Track analytics with IP address for rate limiting
     try {
       const { error: analyticsError } = await supabase
         .from('audit_analytics')
@@ -414,13 +414,14 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
           event_type: 'success',
           url: testUrl,
           user_agent: req.headers.get('user-agent')?.substring(0, 500) || undefined,
+          ip_address: clientIP,
         });
 
       if (analyticsError) {
-        console.log('Analytics insert skipped:', analyticsError.message);
+        console.error('Analytics insert error:', analyticsError.message);
       }
     } catch (analyticsErr) {
-      console.log('Analytics tracking unavailable');
+      console.error('Analytics tracking error:', analyticsErr);
     }
 
     return new Response(
@@ -441,12 +442,13 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       name: error.name
     });
 
-    // Track failed request
+    // Track failed request with IP for rate limiting
     try {
       await supabase
         .from('audit_analytics')
         .insert({
           event_type: 'error',
+          ip_address: clientIP,
         });
     } catch {
       // Ignore analytics errors
