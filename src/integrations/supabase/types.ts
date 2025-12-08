@@ -14,13 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_analytics: {
+        Row: {
+          created_at: string
+          error_type: string | null
+          event_type: string
+          id: string
+          ip_address: string | null
+          referrer: string | null
+          url: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_type?: string | null
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_type?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      audit_submissions: {
+        Row: {
+          audit_results: Json | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          passes_count: number | null
+          url: string
+          violations_count: number | null
+        }
+        Insert: {
+          audit_results?: Json | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          passes_count?: number | null
+          url: string
+          violations_count?: number | null
+        }
+        Update: {
+          audit_results?: Json | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          passes_count?: number | null
+          url?: string
+          violations_count?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_audit_data: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
