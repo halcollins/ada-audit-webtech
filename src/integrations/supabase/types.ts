@@ -14,81 +14,13 @@ export type Database = {
   }
   public: {
     Tables: {
-      audit_analytics: {
-        Row: {
-          created_at: string
-          error_type: string | null
-          event_type: string
-          id: string
-          referrer: string | null
-          url: string | null
-          user_agent: string | null
-        }
-        Insert: {
-          created_at?: string
-          error_type?: string | null
-          event_type: string
-          id?: string
-          referrer?: string | null
-          url?: string | null
-          user_agent?: string | null
-        }
-        Update: {
-          created_at?: string
-          error_type?: string | null
-          event_type?: string
-          id?: string
-          referrer?: string | null
-          url?: string | null
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
-      audit_submissions: {
-        Row: {
-          audit_results: Json | null
-          created_at: string
-          email: string
-          id: string
-          name: string
-          passes_count: number | null
-          updated_at: string
-          url: string
-          violations_count: number | null
-        }
-        Insert: {
-          audit_results?: Json | null
-          created_at?: string
-          email: string
-          id?: string
-          name: string
-          passes_count?: number | null
-          updated_at?: string
-          url: string
-          violations_count?: number | null
-        }
-        Update: {
-          audit_results?: Json | null
-          created_at?: string
-          email?: string
-          id?: string
-          name?: string
-          passes_count?: number | null
-          updated_at?: string
-          url?: string
-          violations_count?: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      cleanup_old_audit_submissions: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
