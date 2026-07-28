@@ -147,6 +147,27 @@ export const tryClientSideAudit = async (data: { name: string; email: string; ur
   }
 };
 
+const saveSubmission = async (data: { name: string; email: string; url: string }, result: AuditResult) => {
+  try {
+    await supabase.from('audit_submissions').insert({
+      name: data.name,
+      email: data.email,
+      url: result.url,
+      audit_results: {
+        violations: result.violations,
+        passes: result.passes,
+        incomplete: result.incomplete,
+        timestamp: result.timestamp,
+        method: result.method,
+      } as any,
+      violations_count: result.violations.length,
+      passes_count: result.passes.length,
+    });
+  } catch (e) {
+    console.warn('Failed to save audit submission:', e);
+  }
+};
+
 export const runAuditWithFallback = async (data: { name: string; email: string; url: string }): Promise<AuditResult> => {
   // Try server-side first, then fall back to client-side
   try {
@@ -156,7 +177,10 @@ export const runAuditWithFallback = async (data: { name: string; email: string; 
     console.log('Server-side audit failed, trying client-side:', serverError);
     
     try {
-      return await tryClientSideAudit(data);
+      const result = await tryClientSideAudit(data);
+      // Server-side path saves via the edge function; save the fallback lead here
+      await saveSubmission(data, result);
+      return result;
     } catch (clientError) {
       console.error('Both audit methods failed:', { serverError, clientError });
       
