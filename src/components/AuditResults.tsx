@@ -59,6 +59,19 @@ const AuditResults = ({ results }: AuditResultsProps) => {
           </p>
         </div>
 
+        {/* Scope disclaimer */}
+        <Card className="card-webtech mb-8">
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">About this report:</strong> This is an automated
+              preliminary screen of the page's static HTML. It does not replace a full manual
+              WCAG 2.1 AA audit. Checks that depend on rendered CSS and interaction — color
+              contrast, focus visibility, keyboard order, and screen reader behavior — require a
+              hands-on review.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Summary Card */}
         <Card className="card-webtech mb-8">
           <CardHeader>
