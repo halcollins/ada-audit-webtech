@@ -549,6 +549,8 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
       // Ignore analytics errors
     }
     
+    const isUserFacing = (error as any)?.userFacing === true;
+
     return new Response(
       JSON.stringify({
         success: false,
@@ -556,7 +558,7 @@ Be thorough and specific. Reference actual elements from the HTML when possible.
         method: 'ai-powered'
       }),
       {
-        status: 500,
+        status: isUserFacing ? 200 : 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
