@@ -220,24 +220,24 @@ serve(async (req) => {
     // Validate required fields
     if (!url || !name || !email) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields: url, name, email' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Missing required fields: url, name, email', validation: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate name
     if (!validateName(name)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Name must be 1-100 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Name must be 1-100 characters', validation: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate email
     if (!validateEmail(email)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid email format or too long (max 255 characters)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Invalid email format or too long (max 255 characters)', validation: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -340,7 +340,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3.7-flash',
         messages: [
           {
             role: 'system',
