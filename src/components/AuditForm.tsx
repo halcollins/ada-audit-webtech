@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,20 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
     url: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(0);
+    const started = Date.now();
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -138,7 +152,7 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Running ADA Audit...
+                    Running ADA Audit... {elapsed}s
                   </>
                 ) : (
                   <>
@@ -148,6 +162,24 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
                 )}
               </Button>
             </form>
+
+            {isLoading && (
+              <div className="mt-4 space-y-2" aria-live="polite">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all duration-1000 ease-linear"
+                    style={{ width: `${Math.min((elapsed / 45) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-sm text-center text-muted-foreground">
+                  {elapsed < 10
+                    ? "Fetching your page HTML..."
+                    : elapsed < 30
+                      ? "Analyzing markup against WCAG 2.1 AA criteria..."
+                      : "Finishing up \u2014 this can take up to 45 seconds."}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
         
