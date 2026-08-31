@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { trackAuditAttempt, trackAuditSuccess, trackAuditFailure } from "@/utils/analytics";
-import { runAuditWithFallback, type AuditResult } from "@/services/auditService";
+import { runAuditWithFallback, AUDIT_TIMEOUT_MS, type AuditResult } from "@/services/auditService";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import AuditForm from "@/components/AuditForm";
@@ -38,8 +38,19 @@ const Index = () => {
         description: `Analyzing ${testUrl} for accessibility compliance using improved reliability system`,
       });
 
-      // Use the new audit service with fallback logic
-      const auditResult = await runAuditWithFallback(data);
+      // Use the audit service with fallback logic, capped at 45 seconds total
+      const auditResult = await Promise.race([
+        runAuditWithFallback(data),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => {
+            const err = new Error(
+              "The audit took longer than 45 seconds and was stopped. The site may be slow or blocking automated requests \u2014 please try again or use a different URL."
+            );
+            (err as any).type = "timeout";
+            reject(err);
+          }, AUDIT_TIMEOUT_MS)
+        ),
+      ]);
       
       setAuditResults(auditResult);
       
@@ -48,7 +59,12 @@ const Index = () => {
       // Track successful audit
       trackAuditSuccess(auditResult.url, auditResult.violations.length, auditResult.passes.length);
       
-      const methodText = auditResult.method === 'server-side' ? 'server-side processing' : 'client-side processing';
+      const methodText =
+        auditResult.method === 'ai-powered'
+          ? 'AI-powered server analysis'
+          : auditResult.method === 'server-side'
+            ? 'server-side processing'
+            : 'client-side processing';
       
       toast({
         title: "Audit complete!",
@@ -83,6 +99,10 @@ const Index = () => {
             break;
           case 'axe_library_error':
             errorMessage = "Testing tools unavailable. Please refresh the page and try again.";
+            break;
+          case 'server_rejected':
+          case 'timeout':
+            // Use the message as-is
             break;
         }
       }

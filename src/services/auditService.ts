@@ -2,10 +2,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
-  'https://cors-anywhere.herokuapp.com/',
   'https://api.codetabs.com/v1/proxy?quest=',
-  'https://cors-proxy.htmldriven.com/?url='
 ];
+
+export const AUDIT_TIMEOUT_MS = 45000;
 
 export interface AuditResult {
   violations: any[];
@@ -14,7 +14,7 @@ export interface AuditResult {
   timestamp: string;
   url: string;
   userName: string;
-  method?: 'client-side' | 'server-side';
+  method?: 'client-side' | 'server-side' | 'ai-powered';
 }
 
 export const tryServerSideAudit = async (data: { name: string; email: string; url: string }): Promise<AuditResult> => {
@@ -26,7 +26,15 @@ export const tryServerSideAudit = async (data: { name: string; email: string; ur
     }
   });
 
-  if (error) throw error;
+  if (error) {
+    // functions.invoke discards the response body on non-2xx - recover it
+    const body = await (error as any).context?.json?.().catch(() => null);
+    const status = (error as any).context?.status;
+    const err = new Error(body?.error || error.message);
+    (err as any).status = status;
+    (err as any).final = status === 429 || body?.validation === true;
+    throw err;
+  }
 
   if (result.success) {
     return {
@@ -39,7 +47,9 @@ export const tryServerSideAudit = async (data: { name: string; email: string; ur
       method: result.method || 'ai-powered'
     };
   } else {
-    throw new Error(result.error || 'AI-powered audit failed');
+    const err = new Error(result.error || 'AI-powered audit failed');
+    (err as any).final = result.validation === true || /rate limit/i.test(result.error || '');
+    throw err;
   }
 };
 
@@ -59,7 +69,7 @@ export const tryClientSideAudit = async (data: { name: string; email: string; ur
       const proxyUrl = proxy + encodeURIComponent(testUrl);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout
       
       const response = await fetch(proxyUrl, {
         signal: controller.signal,
@@ -174,6 +184,13 @@ export const runAuditWithFallback = async (data: { name: string; email: string; 
     console.log('Attempting server-side audit...');
     return await tryServerSideAudit(data);
   } catch (serverError) {
+    // Do not fall back on rate limits or validation errors - surface them
+    if ((serverError as any)?.final) {
+      const error = new Error((serverError as Error).message);
+      (error as any).type = 'server_rejected';
+      throw error;
+    }
+
     console.log('Server-side audit failed, trying client-side:', serverError);
     
     try {
