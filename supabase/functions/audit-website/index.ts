@@ -7,10 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://api.codetabs.com/v1/proxy?quest=',
-];
+// Single backup proxy used only if the direct fetch fails
+const BACKUP_PROXY = 'https://api.allorigins.win/raw?url=';
+
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+// Expected, user-facing failures -> HTTP 200 with { success: false }
+class UserFacingError extends Error {
+  userFacing = true;
+}
 
 // Rate limiting: max requests per IP per hour
 const RATE_LIMIT_MAX = 10;
@@ -26,6 +32,60 @@ function validateName(name: string): boolean {
   return typeof name === 'string' && name.trim().length >= 1 && name.length <= 100;
 }
 
+function isBlockedIPv4(a: number, b: number): string | null {
+  if (a === 10) return 'Private IP addresses are not allowed';
+  if (a === 172 && b >= 16 && b <= 31) return 'Private IP addresses are not allowed';
+  if (a === 192 && b === 168) return 'Private IP addresses are not allowed';
+  if (a === 169 && b === 254) return 'Link-local addresses are not allowed';
+  if (a === 127) return 'Loopback addresses are not allowed';
+  if (a === 0) return 'Invalid IP address';
+  if (a === 100 && b >= 64 && b <= 127) return 'Carrier-grade NAT addresses are not allowed';
+  if (a === 192 && b === 0) return 'Reserved IP addresses are not allowed';
+  if (a >= 224) return 'Multicast/reserved IP addresses are not allowed';
+  return null;
+}
+
+// Detect decimal / octal / hex encoded IPv4 (e.g. 2130706433, 0177.0.0.1, 0x7f.1)
+function decodeNumericHost(host: string): number[] | null {
+  const parts = host.split('.');
+  if (parts.length > 4 || parts.length === 0) return null;
+  const nums: number[] = [];
+  for (const p of parts) {
+    if (!p.length) return null;
+    let n: number;
+    if (/^0[xX][0-9a-fA-F]+$/.test(p)) n = parseInt(p, 16);
+    else if (/^0[0-7]+$/.test(p)) n = parseInt(p, 8);
+    else if (/^\d+$/.test(p)) n = parseInt(p, 10);
+    else return null;
+    if (!Number.isFinite(n)) return null;
+    nums.push(n);
+  }
+  // Expand to 4 octets
+  if (nums.length === 4) return nums;
+  const last = nums.pop()!;
+  const bytes: number[] = [...nums];
+  const remaining = 4 - bytes.length;
+  for (let i = remaining - 1; i >= 0; i--) {
+    bytes.push((last >>> (i * 8)) & 0xff);
+  }
+  return bytes.length === 4 ? bytes : null;
+}
+
+function isBlockedIPv6(host: string): string | null {
+  const h = host.replace(/^\[|\]$/g, '').toLowerCase().split('%')[0];
+  if (!h.includes(':')) return null;
+  if (h === '::1' || h === '::') return 'Internal addresses are not allowed';
+  if (/^f[cd][0-9a-f]{2}:/.test(h)) return 'Private IPv6 addresses are not allowed';
+  if (/^fe[89ab][0-9a-f]:/.test(h)) return 'Link-local IPv6 addresses are not allowed';
+  // IPv4-mapped IPv6 e.g. ::ffff:127.0.0.1
+  const mapped = h.match(/::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (mapped) {
+    const blocked = isBlockedIPv4(Number(mapped[1]), Number(mapped[2]));
+    if (blocked) return blocked;
+  }
+  return null;
+}
+
 function validateUrl(url: string): { valid: boolean; normalized?: string; error?: string } {
   if (typeof url !== 'string' || url.length > 2048) {
     return { valid: false, error: 'URL must be a string with max 2048 characters' };
@@ -38,39 +98,48 @@ function validateUrl(url: string): { valid: boolean; normalized?: string; error?
 
   try {
     const parsed = new URL(normalized);
-    
-    // Block private/internal IP addresses (SSRF protection)
-    const hostname = parsed.hostname.toLowerCase();
-    
-    // Block localhost variants
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-      return { valid: false, error: 'Internal addresses are not allowed' };
-    }
-    
-    // Block private IP ranges
-    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    if (ipv4Match) {
-      const [, a, b, c] = ipv4Match.map(Number);
-      // 10.x.x.x
-      if (a === 10) return { valid: false, error: 'Private IP addresses are not allowed' };
-      // 172.16.x.x - 172.31.x.x
-      if (a === 172 && b >= 16 && b <= 31) return { valid: false, error: 'Private IP addresses are not allowed' };
-      // 192.168.x.x
-      if (a === 192 && b === 168) return { valid: false, error: 'Private IP addresses are not allowed' };
-      // 169.254.x.x (link-local)
-      if (a === 169 && b === 254) return { valid: false, error: 'Link-local addresses are not allowed' };
-      // 0.0.0.0
-      if (a === 0) return { valid: false, error: 'Invalid IP address' };
-    }
-    
-    // Block internal hostnames
-    if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.localhost')) {
-      return { valid: false, error: 'Internal hostnames are not allowed' };
-    }
 
     // Only allow http/https protocols
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return { valid: false, error: 'Only HTTP and HTTPS protocols are allowed' };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Port restrictions: allow default, 80, 443, or any port >= 1024
+    if (parsed.port) {
+      const port = Number(parsed.port);
+      if (!Number.isInteger(port) || port <= 0) {
+        return { valid: false, error: 'Invalid port' };
+      }
+      if (port < 1024 && port !== 80 && port !== 443) {
+        return { valid: false, error: 'This port is not allowed' };
+      }
+    }
+
+    // Block localhost variants
+    if (
+      hostname === 'localhost' ||
+      hostname === '::1' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.localhost')
+    ) {
+      return { valid: false, error: 'Internal addresses are not allowed' };
+    }
+
+    // IPv6 checks (bracketed or bare)
+    const ipv6Blocked = isBlockedIPv6(hostname);
+    if (ipv6Blocked) return { valid: false, error: ipv6Blocked };
+
+    // IPv4, including decimal/octal/hex encodings
+    if (/^[0-9a-fA-FxX.]+$/.test(hostname) && !hostname.includes(':')) {
+      const octets = decodeNumericHost(hostname);
+      if (octets) {
+        const blocked = isBlockedIPv4(octets[0], octets[1]);
+        if (blocked) return { valid: false, error: blocked };
+      }
     }
 
     return { valid: true, normalized };
