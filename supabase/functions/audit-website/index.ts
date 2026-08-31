@@ -241,12 +241,12 @@ serve(async (req) => {
       );
     }
 
-    // Validate URL with SSRF protection
+    // Validate URL with SSRF protection (200 so the client can read the message)
     const urlValidation = validateUrl(url);
     if (!urlValidation.valid) {
       return new Response(
-        JSON.stringify({ success: false, error: urlValidation.error }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: urlValidation.error, validation: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -256,48 +256,74 @@ serve(async (req) => {
 
     console.log(`Starting AI-powered audit for: ${testUrl}`);
 
-    // Fetch HTML content
+    // Fetch HTML content directly (server-side, no CORS restriction)
     let html = '';
-    let lastError = null;
+    let lastError: unknown = null;
 
-    for (const proxy of CORS_PROXIES) {
+    try {
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': BROWSER_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(12000),
+      });
+
+      // Re-validate the final URL after redirects (SSRF redirect protection)
+      const finalUrl = response.url || testUrl;
+      const finalCheck = validateUrl(finalUrl);
+      if (!finalCheck.valid) {
+        throw new UserFacingError(`Redirect blocked: ${finalCheck.error}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      html = await response.text();
+      console.log(`Direct fetch succeeded (${html.length} chars)`);
+    } catch (error) {
+      if (error instanceof UserFacingError) throw error;
+      console.log('Direct fetch failed, trying backup proxy:', error);
+      lastError = error;
+    }
+
+    if (!html) {
       try {
-        console.log(`Trying proxy: ${proxy}`);
-        const proxyUrl = proxy + encodeURIComponent(testUrl);
-        
-        const response = await fetch(proxyUrl, {
+        const response = await fetch(BACKUP_PROXY + encodeURIComponent(testUrl), {
           method: 'GET',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; AccessibilityAuditor/1.0)',
-          },
-          signal: AbortSignal.timeout(15000),
+          headers: { 'User-Agent': BROWSER_UA },
+          signal: AbortSignal.timeout(12000),
         });
-
-        if (response.ok) {
-          html = await response.text();
-          console.log(`Successfully fetched content via ${proxy}`);
-          break;
-        } else {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        html = await response.text();
+        console.log(`Backup proxy fetch succeeded (${html.length} chars)`);
       } catch (error) {
-        console.log(`Proxy ${proxy} failed:`, error);
+        console.log('Backup proxy failed:', error);
         lastError = error;
-        continue;
       }
     }
 
     if (!html) {
-      throw new Error(`Unable to fetch website content. Please verify the URL is accessible.`);
+      throw new UserFacingError(
+        'Unable to fetch website content. Please verify the URL is publicly accessible.'
+      );
     }
 
-    console.log(`Fetched HTML content: ${html.length} characters`);
+    // Strip scripts, styles and comments so more real markup fits the budget
+    const cleanedHtml = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\n{3,}/g, '\n\n');
 
-    // Truncate HTML if too long (to fit AI context)
-    const maxHtmlLength = 50000;
-    const truncatedHtml = html.length > maxHtmlLength 
-      ? html.substring(0, maxHtmlLength) + '\n<!-- HTML truncated for analysis -->'
-      : html;
+    const maxHtmlLength = 120000;
+    const truncatedHtml = cleanedHtml.length > maxHtmlLength
+      ? cleanedHtml.substring(0, maxHtmlLength) + '\n<!-- HTML truncated for analysis -->'
+      : cleanedHtml;
 
     // Call Lovable AI for accessibility analysis
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
