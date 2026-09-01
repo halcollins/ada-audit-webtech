@@ -151,10 +151,12 @@ export const tryClientSideAudit = async (data: { name: string; email: string; ur
       };
     });
 
-    // Verify axe-core is available
+    // Load axe-core on demand (pinned version)
+    await loadAxeCore();
     if (!window.axe) {
       throw new Error('Axe-core library not loaded');
     }
+
 
     const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
     if (!iframeDocument) {
