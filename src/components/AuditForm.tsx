@@ -82,7 +82,7 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
         <Card className="card-webtech">
           <CardHeader>
             <CardTitle className="text-2xl text-center" style={{ color: '#FFFFFF' }}>
-              Start Your Free ADA Audit
+              Start Your Free ADA Risk Screening
             </CardTitle>
             <CardDescription className="text-center text-muted-foreground">
               All fields are required to generate your accessibility report
