@@ -4,6 +4,7 @@ import { trackAuditAttempt, trackAuditSuccess, trackAuditFailure } from "@/utils
 import { runAuditWithFallback, AUDIT_TIMEOUT_MS, type AuditResult } from "@/services/auditService";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
+import ScopeChecklist from "@/components/ScopeChecklist";
 import AuditForm from "@/components/AuditForm";
 import AuditResults from "@/components/AuditResults";
 import Footer from "@/components/Footer";
