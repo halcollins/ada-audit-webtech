@@ -39,7 +39,7 @@ const PdfDownload = (props: ScreeningPdfProps) => {
   };
 
   return (
-    <Button onClick={handleDownload} className="btn-webtech-primary" aria-disabled={busy}>
+    <Button onClick={handleDownload} className="btn-webtech-primary" disabled={busy} aria-disabled={busy}>
       {busy ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
       ) : (
