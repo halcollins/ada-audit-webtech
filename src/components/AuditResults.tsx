@@ -50,18 +50,53 @@ const AuditResults = ({ results }: AuditResultsProps) => {
     return new Date(timestamp).toLocaleString();
   };
 
+  const risk = calculateRiskScore(violations);
+
   return (
     <section className="py-16">
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-4" style={{ color: '#FFFFFF' }}>
-            ADA Audit Results for {userName}
+            ADA Risk Screening Results for {userName}
           </h2>
           <p className="text-muted-foreground">
-            Audit completed on {formatTimestamp(timestamp)} for{" "}
+            Screening completed on {formatTimestamp(timestamp)} for{" "}
             <span className="text-primary font-medium">{url}</span>
           </p>
         </div>
+
+        {/* Risk score */}
+        <Card className="card-webtech mb-8">
+          <CardContent className="pt-8 pb-8">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div
+                className="text-7xl md:text-8xl font-bold leading-none"
+                style={{ color: risk.color }}
+              >
+                {risk.score}
+              </div>
+              <div className="text-2xl font-semibold" style={{ color: risk.color }}>
+                {risk.band}
+              </div>
+              <p className="text-muted-foreground max-w-2xl">{risk.summary}</p>
+              <Suspense
+                fallback={
+                  <Button className="btn-webtech-primary" aria-disabled="true">
+                    Preparing PDF…
+                  </Button>
+                }
+              >
+                <PdfDownload
+                  url={url}
+                  userName={userName}
+                  timestamp={timestamp}
+                  violations={violations}
+                  passes={passes}
+                />
+              </Suspense>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Scope disclaimer */}
         <Card className="card-webtech mb-8">
@@ -79,9 +114,9 @@ const AuditResults = ({ results }: AuditResultsProps) => {
         {/* Summary Card */}
         <Card className="card-webtech mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
+            <CardTitle className="flex items-center gap-2 text-base text-foreground">
               <AlertTriangle className="h-5 w-5 text-primary" />
-              Audit Summary
+              Screening Summary
             </CardTitle>
           </CardHeader>
           <CardContent>
