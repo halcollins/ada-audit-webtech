@@ -1,7 +1,9 @@
+import { Suspense, lazy } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { calculateRiskScore } from "@/utils/riskScore";
 import { 
   CheckCircle, 
   XCircle, 
@@ -10,6 +12,8 @@ import {
   Mail,
   Calendar
 } from "lucide-react";
+
+const PdfDownload = lazy(() => import("@/components/pdf/PdfDownload"));
 
 interface AuditResult {
   violations: any[];
