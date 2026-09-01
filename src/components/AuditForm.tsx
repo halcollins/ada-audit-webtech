@@ -82,7 +82,7 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
         <Card className="card-webtech">
           <CardHeader>
             <CardTitle className="text-2xl text-center" style={{ color: '#FFFFFF' }}>
-              Start Your Free ADA Audit
+              Start Your Free ADA Risk Screening
             </CardTitle>
             <CardDescription className="text-center text-muted-foreground">
               All fields are required to generate your accessibility report
@@ -152,14 +152,15 @@ const AuditForm = ({ onSubmit, isLoading }: AuditFormProps) => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Running ADA Audit... {elapsed}s
+                    Running screening... {elapsed}s
                   </>
                 ) : (
                   <>
                     <Search className="mr-2 h-5 w-5" />
-                    Run ADA Audit
+                    Run Free Screening
                   </>
                 )}
+
               </Button>
             </form>
 

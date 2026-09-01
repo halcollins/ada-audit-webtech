@@ -53,7 +53,33 @@ export const tryServerSideAudit = async (data: { name: string; email: string; ur
   }
 };
 
+const AXE_CDN_URL = 'https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js';
+let axeLoadPromise: Promise<void> | null = null;
+
+const loadAxeCore = (): Promise<void> => {
+  if ((window as any).axe) return Promise.resolve();
+  if (axeLoadPromise) return axeLoadPromise;
+
+  axeLoadPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = AXE_CDN_URL;
+    script.async = true;
+    script.onload = () => {
+      if ((window as any).axe) resolve();
+      else reject(new Error('Axe-core library not loaded'));
+    };
+    script.onerror = () => reject(new Error('Axe-core library not loaded'));
+    document.head.appendChild(script);
+  }).catch((e) => {
+    axeLoadPromise = null;
+    throw e;
+  });
+
+  return axeLoadPromise;
+};
+
 export const tryClientSideAudit = async (data: { name: string; email: string; url: string }): Promise<AuditResult> => {
+
   let testUrl = data.url;
   if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
     testUrl = 'https://' + testUrl;
@@ -125,10 +151,12 @@ export const tryClientSideAudit = async (data: { name: string; email: string; ur
       };
     });
 
-    // Verify axe-core is available
+    // Load axe-core on demand (pinned version)
+    await loadAxeCore();
     if (!window.axe) {
       throw new Error('Axe-core library not loaded');
     }
+
 
     const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
     if (!iframeDocument) {
