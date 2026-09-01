@@ -81,7 +81,7 @@ const AuditResults = ({ results }: AuditResultsProps) => {
               <p className="text-muted-foreground max-w-2xl">{risk.summary}</p>
               <Suspense
                 fallback={
-                  <Button className="btn-webtech-primary" aria-disabled="true">
+                  <Button className="btn-webtech-primary" disabled aria-disabled="true">
                     Preparing PDF…
                   </Button>
                 }

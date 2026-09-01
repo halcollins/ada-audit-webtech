@@ -9,11 +9,11 @@ const Header = () => {
             <Accessibility className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>
+            <div className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>
               <a href="/">WebTECH Consulting</a>
-            </h1>
+            </div>
             <p className="text-muted-foreground">
-              Free ADA Accessibility Audit Tool
+              Free ADA Risk Screening
             </p>
           </div>
         </div>
