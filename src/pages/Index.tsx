@@ -125,6 +125,7 @@ const Index = () => {
     <main className="min-h-screen bg-background">
       <Header />
       <Hero />
+      <ScopeChecklist />
       <AuditForm onSubmit={runAccessibilityAudit} isLoading={isLoading} />
       
       {auditResults && (
